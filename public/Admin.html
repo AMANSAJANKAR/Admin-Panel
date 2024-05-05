@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            width: 80%;
+            margin: 20px auto;
+        }
+
+        h2 {
+            text-align: center;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        select {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        input[type="submit"] {
+            background-color: #4caf50;
+            color: white;
+            padding: 14px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        input[type="submit"]:hover {
+            background-color: #45a049;
+        }
+
+        #userList {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        #userList li {
+            margin-bottom: 10px;
+        }
+
+        #userList li button, #confirmBtn {
+            background-color: #f44336;
+            color: white;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 5px;
+        }
+
+        #userList li button:hover {
+            background-color: #d32f2f;
+        }
+
+        .popup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border: 1px solid #ccc;
+            background-color: #f9f9f9;
+            padding: 20px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div id="popupForm" class="popup">
+        <h2>Change Password</h2>
+        <form id="changePasswordForm">
+        <input type="hidden" id="newPasswordUserId"><br><br>
+        <label for="newPassword">New Password:</label>
+          <input type="password" id="newPassword" name="newPassword" required><br><br>
+          <label for="confirmPassword">Confirm New Password:</label>
+          <input type="password" id="confirmPassword" name="confirmPassword" required><br><br>
+          <button id="confirmBtn" type="submit">Change Password</button>
+        </form>
+    </div>
+
+    <div class="container">
+        <h2>Admin Panel</h2>
+        <h3>Create User</h3>
+        <form action="http://localhost:5000/api/user" method="post">
+            <label for="username">Username:</label>
+            <input type="text" id="username" name="username" required>
+            <label for="email">Email:</label>
+            <input type="text" id="email" name="email" required>
+            <label for="password">Password:</label>
+            <input type="password" id="password" name="password" required>
+            <label for="role">Role:</label>
+            <select id="role" name="role" required>
+                <option value="admin">Admin</option>
+                <option value="user">User</option>
+            </select>
+            <input type="submit" value="Create User">
+        </form>
+
+        <h3>Manage Users</h3>
+        <ul id="userList"></ul>
+    </div>
+
+    <script>
+        function openPopup(userId) {
+            document.getElementById("newPasswordUserId").value = userId;
+            document.getElementById("popupForm").style.display = "block";
+        }
+
+        function closePopup() {
+            document.getElementById("popupForm").style.display = "none";
+        }
+
+        async function getUsers() {
+            try {
+                const response = await fetch('/api/users');
+                const users = await response.json();
+                const userList = document.getElementById('userList');
+                userList.innerHTML = '';
+                users.forEach(user => {
+                    console.log("======>>>" + JSON.stringify(user))
+                    const listItem = document.createElement('li');
+                    listItem.innerHTML = `
+                            <strong>Username:</strong> ${user.username}
+                            <strong>Disabled:</strong> ${user.disabled}
+                            <button onclick="openPopup('${user._id}')">Change Password</button>
+                            <button onclick="deleteUser('${user._id}')">Remove</button>
+                            <button onclick="revokeDatabaseAccess('${user._id}')">Revoke Database Access</button>
+                        `
+                    userList.appendChild(listItem);
+                });
+            } catch (error) {
+                console.error('Error fetching users:', error);
+            }
+        }
+
+        document.getElementById("changePasswordForm").addEventListener("submit", async function(event) {
+            event.preventDefault();
+            const newPassword = document.getElementById("newPassword").value;
+            const confirmPassword = document.getElementById("confirmPassword").value;
+            const userId = document.getElementById("newPasswordUserId").value;
+
+            // Perform password validation
+            if (newPassword !== confirmPassword) {
+                alert("New password and confirm password do not match.");
+                return;
+            }
+
+            // Clear form fields
+            document.getElementById("newPassword").value = "";
+            document.getElementById("confirmPassword").value = "";
+            document.getElementById("newPasswordUserId").value = "";
+
+            try {
+                const response = await fetch(`/api/users/${userId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ password: newPassword })
+                });
+                const updatedUser = await response.json();
+                console.log('User updated:', updatedUser);
+                getUsers();
+                closePopup();
+            } catch (error) {
+                console.error('Error updating user:', error);
+            }
+        });
+
+        // Function to delete a user
+        async function deleteUser(userId) {
+            alert("Do you want to delete this user?");
+            try {
+                const response = await fetch(`/api/users/${userId}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+                console.log(data.message);
+                getUsers(); // Refresh the user list
+            } catch (error) {
+                console.error('Error deleting user:', error);
+            }
+        }
+
+        async function revokeDatabaseAccess(userId) {
+            try {
+                const response = await fetch(`/api/users/${userId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ disabled: true })
+                });
+                const updatedUser = await response.json();
+                console.log("Revoking database access for user: " + JSON.stringify(updatedUser));
+                getUsers();
+            } catch (error) {
+                console.error('Error updating user:', error);
+            }
+        }
+
+        getUsers();
+    </script>
+</body>
+</html>
